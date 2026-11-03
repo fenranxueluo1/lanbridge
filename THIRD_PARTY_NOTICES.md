@@ -33,7 +33,7 @@ Primary direct dependencies:
 
 | Component | Version | License | Copyright / upstream |
 | --- | --- | --- | --- |
-| Flutter SDK | 3.35.x | BSD-3-Clause | The Flutter Authors |
+| Flutter SDK | 3.41.x | BSD-3-Clause | The Flutter Authors |
 | file_picker | 11.0.3 | MIT | Miguel Ruivo |
 | desktop_drop | 0.6.1 | Apache-2.0 | desktop_drop contributors |
 | path_provider | 2.1.5 | BSD-3-Clause | The Flutter Authors |

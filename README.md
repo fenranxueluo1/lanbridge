@@ -49,7 +49,7 @@ Windows 首次运行时如果出现防火墙提示，请允许应用在“专用
 
 ### 环境要求
 
-- Flutter `3.35.x`，Dart `3.9.x`
+- Flutter `3.41.x`，Dart `3.11.x`
 - Android：Android SDK 36、JDK 17+
 - Windows：Visual Studio 2022 或更高版本，安装“使用 C++ 的桌面开发”
 - HarmonyOS：DevEco Studio `5.0.5.315+`、HarmonyOS SDK API 26，以及支持 OHOS 的 Flutter 分支
