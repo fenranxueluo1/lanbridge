@@ -85,8 +85,6 @@ class _SendPageState extends State<SendPage> {
           files = await pickTransferFiles(FileType.video);
         case 'files':
           files = await pickTransferFiles(FileType.any);
-        case 'folder':
-          files = await pickTransferFolder();
         case 'text':
           final text = await _promptText();
           if (text != null) {
@@ -239,11 +237,6 @@ class _SendPageState extends State<SendPage> {
                     icon: Icons.insert_drive_file_outlined,
                     label: l10n.pickFiles,
                     onTap: () => _pickContent('files'),
-                  ),
-                  _AddChip(
-                    icon: Icons.folder_outlined,
-                    label: l10n.pickFolder,
-                    onTap: () => _pickContent('folder'),
                   ),
                   _AddChip(
                     icon: Icons.text_snippet_outlined,

@@ -6,7 +6,6 @@ import '../../core/utils/haptics.dart';
 import '../../data/app_controller.dart';
 import '../../data/models/transfer.dart';
 import '../../state/app_scope.dart';
-import '../flows/open_transfer_folder.dart';
 import '../widgets/device_avatar.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/glass_panel.dart';
@@ -430,11 +429,6 @@ class _HistorySection extends StatelessWidget {
                     controller.retryJob(job.id);
                   }
                 : null,
-            onOpenFolder:
-                job.direction == TransferDirection.receive &&
-                        job.status == TransferStatus.completed
-                    ? () => openTransferFolder(context, job)
-                    : null,
           ),
           const SizedBox(height: 10),
         ],
@@ -448,13 +442,11 @@ class _HistoryTile extends StatelessWidget {
     required this.job,
     required this.onTap,
     this.onRetry,
-    this.onOpenFolder,
   });
 
   final TransferJob job;
   final VoidCallback onTap;
   final VoidCallback? onRetry;
-  final VoidCallback? onOpenFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -529,19 +521,6 @@ class _HistoryTile extends StatelessWidget {
               ),
             ],
           ),
-          if (onOpenFolder != null) ...[
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: l10n.openLocation,
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                Icons.folder_open_rounded,
-                size: 18,
-                color: palette.textTertiary,
-              ),
-              onPressed: onOpenFolder,
-            ),
-          ],
           if (onRetry != null) ...[
             const SizedBox(width: 4),
             IconButton(

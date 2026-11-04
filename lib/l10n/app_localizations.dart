@@ -165,7 +165,6 @@ class AppLocalizations {
   String get pickPhotos => _s('照片', 'Photos');
   String get pickVideos => _s('视频', 'Videos');
   String get pickFiles => _s('文件', 'Files');
-  String get pickFolder => _s('文件夹', 'Folder');
   String get pickText => _s('文本', 'Text');
   String get selectedContent => _s('已选择', 'Selected');
   String get emptySelectionTitle => _s('还没有选择内容', 'Nothing selected yet');
@@ -224,7 +223,6 @@ class AppLocalizations {
   String get pause => _s('暂停', 'Pause');
   String get resume => _s('继续', 'Resume');
   String get cancelTransfer => _s('取消传输', 'Cancel transfer');
-  String get openLocation => _s('打开位置', 'Show in folder');
   String get sendAgain => _s('再次发送', 'Send again');
   String get deltaBadge => _s('增量', 'Delta');
   String get resumeBadge => _s('续传', 'Resumed');
@@ -298,9 +296,19 @@ class AppLocalizations {
   );
   String get deviceNameDialogTitle => _s('修改设备名称', 'Change device name');
   String get saveLocation => _s('保存位置', 'Save location');
-  String get harmonySandboxPath => _s(
-    'HarmonyOS 端文件保存在应用沙箱目录，暂不支持修改',
-    'On HarmonyOS files are saved in the app sandbox; this location is fixed',
+  String get saveLocationApp => _s('应用目录', 'App folder');
+  String get saveLocationAppHint => _s(
+    '文件保存在应用沙箱内，仅限本应用访问',
+    'Files stay inside the app sandbox',
+  );
+  String get saveLocationDownloads => _s('下载目录', 'Downloads');
+  String get saveLocationDownloadsHint => _s(
+    '文件保存到公共下载文件夹，可在 文件管理-我的手机-Download-邻传中查看',
+    'Files go to the public Downloads folder (Files > My phone > Download)',
+  );
+  String get saveLocationUnavailable => _s(
+    '无法访问下载目录，已保留当前设置',
+    'Cannot access the Downloads folder; keeping the current choice',
   );
   String get change => _s('更改', 'Change');
   String get sectionNetwork => _s('网络与发现', 'Network & discovery');

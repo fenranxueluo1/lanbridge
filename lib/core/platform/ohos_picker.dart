@@ -12,13 +12,6 @@ class OhosPickedFile {
   final String path;
 }
 
-class OhosPickedFolder {
-  const OhosPickedFolder({required this.name, required this.path});
-
-  final String name;
-  final String path;
-}
-
 /// Bridge to the local OpenHarmony picker implementation.
 class OhosPicker {
   const OhosPicker._();
@@ -48,18 +41,5 @@ class OhosPicker {
       );
     }
     return files;
-  }
-
-  static Future<OhosPickedFolder?> pickFolder() async {
-    final raw = await _channel.invokeMethod<Map<dynamic, dynamic>>('pickFolder');
-    if (raw == null) return null;
-
-    final map = Map<Object?, Object?>.from(raw);
-    final path = map['path'] as String?;
-    if (path == null || path.isEmpty) return null;
-    return OhosPickedFolder(
-      name: (map['name'] as String?) ?? '',
-      path: path,
-    );
   }
 }

@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import '../core/app_info.dart';
 import '../core/platform/app_platform.dart';
 import '../core/platform/background_transfer.dart';
+import '../core/platform/harmony_downloads.dart';
 import '../core/platform/storage_access.dart';
 import '../core/utils/physics_device_name.dart';
 import 'app_settings_store.dart';
@@ -171,6 +172,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       }
       _security = await DeviceSecurity.loadOrCreate();
       await _ensureSavePath();
+      if (AppPlatform.isHarmony && settings.saveToDownloads) {
+        unawaited(_refreshDownloadsDir());
+      }
       _localAddress = await _findLocalAddress();
       try {
         final support = await getApplicationSupportDirectory();
@@ -218,6 +222,16 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       settings.savePath = p.join(directory.path, 'LANBridge');
     } catch (_) {
       // Keep the platform fallback.
+    }
+  }
+
+  /// Keeps the stored downloads path in sync with the authorized folder.
+  Future<void> _refreshDownloadsDir() async {
+    final dir = await HarmonyDownloads.directory();
+    if (dir != null && dir.isNotEmpty && dir != settings.downloadsDir) {
+      settings.downloadsDir = dir;
+      _scheduleSave();
+      _safeNotify();
     }
   }
 
@@ -673,8 +687,17 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (usableFiles.isEmpty) return const [];
 
     final created = <TransferJob>[];
+    final now = DateTime.now();
     for (final target in targets) {
       if (!target.isOnline) continue;
+      final known = _devices[target.id];
+      if (known == null) continue;
+      final lastSeen = known.lastSeen;
+      if (lastSeen != null &&
+          now.difference(lastSeen) > const Duration(seconds: 45)) {
+        _devices.remove(target.id);
+        continue;
+      }
       final job = TransferJob(
         id: _uuid.v4(),
         peerId: target.id,
@@ -814,7 +837,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         job.status = TransferStatus.cancelled;
         job.speed = 0;
       } else {
-        job.markFailed(error.toString());
+        job.markFailed(_sendNetworkMessage(error));
         final remoteId = _remoteSessionIds[job.id];
         if (remoteId != null) {
           unawaited(client.cancel(peer, remoteId));
@@ -845,6 +868,19 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       500 => detail.isEmpty ? '传输失败（HTTP 500）' : '传输失败（HTTP 500）：$detail',
       _ => '传输失败（HTTP ${error.statusCode}）',
     };
+  }
+
+  String _sendNetworkMessage(Object error) {
+    if (error is SocketException) {
+      if (AppPlatform.isWindows) {
+        return '目标设备不可达。若对方是同一台电脑上的 HarmonyOS 模拟器，模拟器通常使用 NAT，Windows 无法反向连接；请改用桥接网络，或先用 hdc 端口转发，再通过“手动连接”访问 127.0.0.1。';
+      }
+      return '目标设备不可达，请确认两台设备在同一局域网，并检查防火墙或热点隔离';
+    }
+    if (error is TimeoutException) {
+      return '连接超时，请确认接收设备在线并处于同一局域网';
+    }
+    return error.toString();
   }
 
   LanPeer _toPeer(Device device) {
@@ -979,10 +1015,39 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (completion.success) {
       job.markCompleted();
       _notifyTransferComplete(job, received: true);
+      if (AppPlatform.isHarmony && settings.saveToDownloads) {
+        unawaited(_exportReceivedToDownloads(job));
+      }
     } else {
       job.markFailed('接收失败');
     }
     _safeNotify();
+  }
+
+  /// Moves freshly received sandbox files into the public downloads folder
+  /// (HarmonyOS). Files that fail to export simply stay in the sandbox, so
+  /// nothing is ever lost.
+  Future<void> _exportReceivedToDownloads(TransferJob job) async {
+    final dir = settings.downloadsDir;
+    if (dir.isEmpty || job.savedFiles.isEmpty) return;
+    final sources = List<String>.of(job.savedFiles);
+    final results = await HarmonyDownloads.exportFiles(dir, sources);
+    if (_disposed || results.length != sources.length) return;
+    final finalPaths = <String>[];
+    var moved = false;
+    for (var index = 0; index < results.length; index++) {
+      final destination = results[index];
+      if (destination != null) {
+        finalPaths.add(destination);
+        moved = true;
+      } else {
+        finalPaths.add(sources[index]);
+      }
+    }
+    if (moved) {
+      job.savedFiles = finalPaths;
+      _safeNotify();
+    }
   }
 
   void _notifyTransferComplete(
@@ -1123,6 +1188,24 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       unawaited(StorageAccess.ensureManageStorage());
     }
     _safeNotify();
+  }
+
+  /// HarmonyOS: switches the destination of received files between the app
+  /// sandbox and the public downloads folder. Returns false when the public
+  /// folder could not be authorized (the previous choice is kept).
+  Future<bool> setSaveToDownloads(bool value) async {
+    if (value) {
+      var dir = await HarmonyDownloads.directory();
+      dir ??= await HarmonyDownloads.authorize();
+      if (dir == null || dir.isEmpty) {
+        return false;
+      }
+      settings.downloadsDir = dir;
+    }
+    settings.saveToDownloads = value;
+    _scheduleSave();
+    _safeNotify();
+    return true;
   }
 
   void setThemeMode(ThemeMode mode) {

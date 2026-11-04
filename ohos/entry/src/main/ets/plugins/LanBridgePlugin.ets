@@ -1,10 +1,9 @@
 import common from '@ohos.app.ability.common';
-import Want from '@ohos.app.ability.Want';
 import wantAgent from '@ohos.app.ability.wantAgent';
 import backgroundTaskManager from '@ohos.resourceschedule.backgroundTaskManager';
 import notificationManager from '@ohos.notificationManager';
-import fileUri from '@ohos.file.fileuri';
 import fs from '@ohos.file.fs';
+import fileuri from '@ohos.file.fileuri';
 import picker from '@ohos.file.picker';
 import photoAccessHelper from '@ohos.file.photoAccessHelper';
 import {
@@ -21,6 +20,7 @@ const PATHS_CHANNEL = 'plugins.flutter.io/path_provider';
 const PICKER_CHANNEL = 'lanbridge/picker';
 const NETWORK_CHANNEL = 'lanbridge/network';
 const BACKGROUND_CHANNEL = 'lanbridge/background';
+const DOWNLOADS_CHANNEL = 'lanbridge/downloads';
 
 class PickedFile {
   name: string;
@@ -30,16 +30,6 @@ class PickedFile {
   constructor(name: string, size: number, path: string) {
     this.name = name;
     this.size = size;
-    this.path = path;
-  }
-}
-
-class PickedFolder {
-  name: string;
-  path: string;
-
-  constructor(name: string, path: string) {
-    this.name = name;
     this.path = path;
   }
 }
@@ -92,15 +82,28 @@ class BackgroundHandler implements MethodCallHandler {
   }
 }
 
+class DownloadsHandler implements MethodCallHandler {
+  private plugin: LanBridgePlugin;
+
+  constructor(plugin: LanBridgePlugin) {
+    this.plugin = plugin;
+  }
+
+  onMethodCall(call: MethodCall, result: MethodResult): void {
+    this.plugin.handleDownloads(call, result);
+  }
+}
+
 /// Local OpenHarmony plugin. It provides the path_provider channel used by the
 /// Dart package, a native file/photo/folder picker, and the mobile network
-/// helpers (multicast no-op and opening a received folder).
+/// helpers.
 export class LanBridgePlugin {
   private context: common.UIAbilityContext;
   private pathsChannel: MethodChannel | null = null;
   private pickerChannel: MethodChannel | null = null;
   private networkChannel: MethodChannel | null = null;
   private backgroundChannel: MethodChannel | null = null;
+  private downloadsChannel: MethodChannel | null = null;
   private backgroundRunning = false;
 
   constructor(context: common.UIAbilityContext) {
@@ -117,6 +120,8 @@ export class LanBridgePlugin {
     this.networkChannel.setMethodCallHandler(new NetworkHandler(this));
     this.backgroundChannel = new MethodChannel(messenger, BACKGROUND_CHANNEL);
     this.backgroundChannel.setMethodCallHandler(new BackgroundHandler(this));
+    this.downloadsChannel = new MethodChannel(messenger, DOWNLOADS_CHANNEL);
+    this.downloadsChannel.setMethodCallHandler(new DownloadsHandler(this));
   }
 
   detach(): void {
@@ -133,6 +138,8 @@ export class LanBridgePlugin {
     this.networkChannel = null;
     this.backgroundChannel?.setMethodCallHandler(null);
     this.backgroundChannel = null;
+    this.downloadsChannel?.setMethodCallHandler(null);
+    this.downloadsChannel = null;
   }
 
   handlePaths(call: MethodCall, result: MethodResult): void {
@@ -174,23 +181,6 @@ export class LanBridgePlugin {
         });
       return;
     }
-    if (call.method === 'pickFolder') {
-      this.pickFolder()
-        .then((folder: PickedFolder | null) => {
-          if (folder === null) {
-            result.success(null);
-            return;
-          }
-          const map = new Map<string, Object>();
-          map.set('name', folder.name);
-          map.set('path', folder.path);
-          result.success(map);
-        })
-        .catch((error: Error) => {
-          result.error('PICKER_FAILED', this.errorMessage(error), null);
-        });
-      return;
-    }
     result.notImplemented();
   }
 
@@ -200,24 +190,39 @@ export class LanBridgePlugin {
       case 'releaseMulticastLock':
         result.success(null);
         break;
-      case 'openFolder': {
-        const path = call.argument('path') as string;
-        if (path === null || path === undefined || path.length === 0) {
-          result.error('INVALID_PATH', 'Missing folder path', null);
-          return;
-        }
-        this.openFolder(path)
-          .then((opened: boolean) => {
-            result.success(opened);
-          })
-          .catch((error: Error) => {
-            result.error('OPEN_FOLDER', this.errorMessage(error), null);
-          });
-        break;
-      }
       default:
         result.notImplemented();
     }
+  }
+
+  handleDownloads(call: MethodCall, result: MethodResult): void {
+    if (call.method === 'getDir') {
+      result.success(this.downloadsDirPath());
+      return;
+    }
+    if (call.method === 'authorize') {
+      this.authorizeDownloadsDir()
+        .then((path: string) => {
+          result.success(path);
+        })
+        .catch((error: Error) => {
+          result.error('DOWNLOADS_AUTH', this.errorMessage(error), null);
+        });
+      return;
+    }
+    if (call.method === 'exportFiles') {
+      const dir = (call.argument('dir') as string) ?? '';
+      const files = (call.argument('files') as string[]) ?? [];
+      this.exportFilesToDownloads(dir, files)
+        .then((destinations: Array<string | null>) => {
+          result.success(destinations);
+        })
+        .catch((error: Error) => {
+          result.error('DOWNLOADS_EXPORT', this.errorMessage(error), null);
+        });
+      return;
+    }
+    result.notImplemented();
   }
 
   handleBackground(call: MethodCall, result: MethodResult): void {
@@ -254,6 +259,96 @@ export class LanBridgePlugin {
       return;
     }
     result.notImplemented();
+  }
+
+  /// The pre-defined URI of this app's folder inside the public Download
+  /// directory. DOWNLOAD-mode saves land in "Download/<bundleName>" and the
+  /// authorization for that folder persists across restarts and reinstalls.
+  private downloadsUri(): string {
+    return `file://docs/storage/Users/currentUser/Download/${this.context.abilityInfo.bundleName}`;
+  }
+
+  /// Returns the sandbox-visible path of "Download/<bundleName>" when the
+  /// folder is already authorized, otherwise null.
+  private downloadsDirPath(): string | null {
+    try {
+      const uri = new fileuri.FileUri(this.downloadsUri());
+      const stat = fs.statSync(uri.path);
+      if (stat.isDirectory()) {
+        return uri.path;
+      }
+    } catch (_) {
+      // Not created or not authorized yet.
+    }
+    return null;
+  }
+
+  /// Ensures the persistent authorization for "Download/<bundleName>" by
+  /// triggering a DOWNLOAD-mode save (the system saves directly into that
+  /// folder without showing a picker UI) and returns its path.
+  private async authorizeDownloadsDir(): Promise<string> {
+    const existing = this.downloadsDirPath();
+    if (existing !== null) {
+      return existing;
+    }
+    const options = new picker.DocumentSaveOptions();
+    options.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
+    // Avoid pre-creating an empty placeholder file on devices that support it.
+    options.autoCreateEmptyFile = false;
+    const documentPicker = new picker.DocumentViewPicker(this.context);
+    await documentPicker.save(options);
+    const path = this.downloadsDirPath();
+    if (path === null) {
+      throw new Error('Download directory is not accessible');
+    }
+    return path;
+  }
+
+  /// Moves [files] (sandbox paths) into the public downloads [dir]. Resolves
+  /// with one entry per input: the destination path on success, or null when
+  /// the file was left untouched.
+  private async exportFilesToDownloads(
+    dir: string,
+    files: string[],
+  ): Promise<Array<string | null>> {
+    if (dir.length === 0 || files.length === 0) {
+      return [];
+    }
+    this.ensureDir(dir);
+    const destinations: Array<string | null> = [];
+    for (let index = 0; index < files.length; index++) {
+      const source = files[index];
+      try {
+        const destination = this.uniqueDestination(dir, this.baseName(source));
+        await fs.copyFile(source, destination);
+        fs.unlinkSync(source);
+        destinations.push(destination);
+      } catch (error) {
+        Log.w(TAG, `Failed to export ${source}: ${this.errorMessage(error as Error)}`);
+        destinations.push(null);
+      }
+    }
+    return destinations;
+  }
+
+  private baseName(path: string): string {
+    const trimmed = this.trimTrailingSlash(path);
+    return trimmed.substring(trimmed.lastIndexOf('/') + 1);
+  }
+
+  /// Appends " (n)" before the extension until the name is free in [dir].
+  private uniqueDestination(dir: string, name: string): string {
+    const safe = this.safeName(name);
+    const dot = safe.lastIndexOf('.');
+    const stem = dot > 0 ? safe.substring(0, dot) : safe;
+    const ext = dot > 0 ? safe.substring(dot) : '';
+    let candidate = `${dir}/${safe}`;
+    let counter = 1;
+    while (fs.accessSync(candidate)) {
+      candidate = `${dir}/${stem} (${counter})${ext}`;
+      counter++;
+    }
+    return candidate;
   }
 
   private async startBackground(): Promise<void> {
@@ -364,58 +459,6 @@ export class LanBridgePlugin {
     return files;
   }
 
-  private async pickFolder(): Promise<PickedFolder | null> {
-    const options = new picker.DocumentSelectOptions();
-    options.maxSelectNumber = 1;
-    options.selectMode = picker.DocumentSelectMode.FOLDER;
-    const documentPicker = new picker.DocumentViewPicker(this.context);
-    const uris = await documentPicker.select(options);
-    if (uris.length === 0) {
-      return null;
-    }
-
-    const uri = this.trimTrailingSlash(uris[0]);
-    const name = this.fileNameFromUri(uri);
-    const root = `${this.context.cacheDir}/lanbridge_picked/folder_${Date.now()}`;
-    this.ensureDir(root);
-
-    const entries = await fs.listFile(uri, { recursion: true, listNum: 5000 });
-    for (const entry of entries) {
-      const relative = this.safeRelative(entry);
-      if (relative.length === 0) {
-        continue;
-      }
-      const encoded = relative
-        .split('/')
-        .map((part: string) => encodeURIComponent(part))
-        .join('/');
-      const sourceUri = `${uri}/${encoded}`;
-      const destination = `${root}/${relative}`;
-      this.ensureParent(destination);
-      try {
-        const source = fs.openSync(sourceUri, fs.OpenMode.READ_ONLY);
-        try {
-          fs.copyFileSync(source.fd, destination);
-        } finally {
-          fs.closeSync(source);
-        }
-      } catch (error) {
-        Log.w(TAG, `Failed to copy folder entry ${sourceUri}: ${this.errorMessage(error as Error)}`);
-      }
-    }
-    return new PickedFolder(name.length > 0 ? name : 'folder', root);
-  }
-
-  private async openFolder(path: string): Promise<boolean> {
-    const uri = fileUri.getUriFromPath(path);
-    const want: Want = {
-      action: 'ohos.want.action.viewData',
-      uri: uri,
-    };
-    await this.context.startAbility(want);
-    return true;
-  }
-
   private fileNameFromUri(uri: string): string {
     const clean = uri.split('?')[0];
     const trimmed = this.trimTrailingSlash(clean);
@@ -431,12 +474,6 @@ export class LanBridgePlugin {
     return value.endsWith('/') ? value.substring(0, value.length - 1) : value;
   }
 
-  private safeRelative(entry: string): string {
-    const raw = entry.startsWith('/') ? entry.substring(1) : entry;
-    const parts = raw.split('/').filter((part: string) => part.length > 0 && part !== '.' && part !== '..');
-    return parts.join('/');
-  }
-
   private safeName(name: string): string {
     const safe = name.replace(/[\\/:*?"<>|]/g, '_');
     if (safe.length === 0 || safe === '.' || safe === '..') {
@@ -450,13 +487,6 @@ export class LanBridgePlugin {
       fs.mkdirSync(path, true);
     } catch (_) {
       // The directory already exists or cannot be created.
-    }
-  }
-
-  private ensureParent(filePath: string): void {
-    const index = filePath.lastIndexOf('/');
-    if (index > 0) {
-      this.ensureDir(filePath.substring(0, index));
     }
   }
 

@@ -76,42 +76,39 @@ class SettingsPage extends StatelessWidget {
                         onChanged: controller.setAutoDeviceName,
                       ),
                     ),
-                    SettingsTile(
-                      icon: Icons.folder_outlined,
-                      title: l10n.saveLocation,
-                      subtitle: Formatters.shortenPath(settings.savePath),
-                      trailing: _chevron(palette),
-                      onTap: () async {
-                        if (AppPlatform.isHarmony) {
-                          showAppToast(
-                            context,
-                            l10n.harmonySandboxPath,
-                            icon: Icons.folder_outlined,
-                          );
-                          return;
-                        }
-                        try {
-                          final directory =
-                              await FilePicker.getDirectoryPath();
-                          if (directory != null && directory.isNotEmpty) {
-                            controller.setSavePath(directory);
-                            return;
+                    // 鸿蒙端提供两个固定保存位置：应用沙箱 / 公共下载目录
+                    // （Download/<包名>，持久化授权，文件管理可见）。
+                    if (AppPlatform.isHarmony)
+                      const _HarmonySaveLocationTile()
+                    else
+                      SettingsTile(
+                        icon: Icons.folder_outlined,
+                        title: l10n.saveLocation,
+                        subtitle: Formatters.shortenPath(settings.savePath),
+                        trailing: _chevron(palette),
+                        onTap: () async {
+                          try {
+                            final directory =
+                                await FilePicker.getDirectoryPath();
+                            if (directory != null && directory.isNotEmpty) {
+                              controller.setSavePath(directory);
+                              return;
+                            }
+                          } catch (_) {
+                            // Fall back to manual entry below.
                           }
-                        } catch (_) {
-                          // Fall back to manual entry below.
-                        }
-                        if (!context.mounted) return;
-                        final value = await _promptText(
-                          context,
-                          title: l10n.saveLocation,
-                          initial: settings.savePath,
-                          hint: '/Downloads/LANBridge',
-                        );
-                        if (value != null && value.trim().isNotEmpty) {
-                          controller.setSavePath(value.trim());
-                        }
-                      },
-                    ),
+                          if (!context.mounted) return;
+                          final value = await _promptText(
+                            context,
+                            title: l10n.saveLocation,
+                            initial: settings.savePath,
+                            hint: '/Downloads/LANBridge',
+                          );
+                          if (value != null && value.trim().isNotEmpty) {
+                            controller.setSavePath(value.trim());
+                          }
+                        },
+                      ),
                   ],
                 ),
                 const SizedBox(height: 22),
@@ -468,6 +465,90 @@ class _LanguageTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// HarmonyOS save-location picker: app sandbox or the public downloads folder
+/// (`Download/<bundleName>`, visible in Files). Works on phones, tablets and
+/// HarmonyOS PCs alike.
+class _HarmonySaveLocationTile extends StatelessWidget {
+  const _HarmonySaveLocationTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = AppScope.of(context);
+    final l10n = context.l10n;
+    final palette = context.palette;
+    final toDownloads = controller.settings.saveToDownloads;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _iconBox(context, Icons.folder_outlined),
+              const SizedBox(width: 13),
+              Text(
+                l10n.saveLocation,
+                style: context.textStyles.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                toDownloads
+                    ? l10n.saveLocationDownloads
+                    : l10n.saveLocationApp,
+                style: context.textStyles.labelSmall?.copyWith(
+                  color: palette.textTertiary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SegmentedControl<bool>(
+            value: toDownloads,
+            onChanged: (value) => _apply(context, value),
+            height: 42,
+            options: [
+              SegmentOption(
+                value: false,
+                label: l10n.saveLocationApp,
+                icon: Icons.folder_outlined,
+              ),
+              SegmentOption(
+                value: true,
+                label: l10n.saveLocationDownloads,
+                icon: Icons.download_outlined,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            toDownloads
+                ? l10n.saveLocationDownloadsHint
+                : l10n.saveLocationAppHint,
+            style: context.textStyles.labelSmall?.copyWith(
+              color: palette.textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _apply(BuildContext context, bool value) async {
+    final controller = AppScope.of(context);
+    final l10n = context.l10n;
+    final ok = await controller.setSaveToDownloads(value);
+    if (!ok && context.mounted) {
+      showAppToast(
+        context,
+        l10n.saveLocationUnavailable,
+        icon: Icons.error_outline_rounded,
+      );
+    }
   }
 }
 

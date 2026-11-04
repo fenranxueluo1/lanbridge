@@ -15,6 +15,8 @@ class AppSettings {
     this.autoAcceptFavorites = false,
     this.webShareEnabled = false,
     this.autoDeviceName = true,
+    this.saveToDownloads = false,
+    this.downloadsDir = '',
   });
 
   String deviceName;
@@ -30,6 +32,8 @@ class AppSettings {
   Locale locale;
   bool autoAcceptFavorites;
   bool webShareEnabled;
+  bool saveToDownloads;
+  String downloadsDir;
 
   Map<String, dynamic> toJson() => {
         'deviceName': deviceName,
@@ -45,6 +49,8 @@ class AppSettings {
         'locale': locale.languageCode,
         'autoAcceptFavorites': autoAcceptFavorites,
         'webShareEnabled': webShareEnabled,
+        'saveToDownloads': saveToDownloads,
+        'downloadsDir': downloadsDir,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -79,6 +85,8 @@ class AppSettings {
       autoAcceptFavorites:
           (json['autoAcceptFavorites'] as bool?) ?? false,
       webShareEnabled: (json['webShareEnabled'] as bool?) ?? false,
+      saveToDownloads: (json['saveToDownloads'] as bool?) ?? false,
+      downloadsDir: (json['downloadsDir'] as String?) ?? '',
     );
   }
 }

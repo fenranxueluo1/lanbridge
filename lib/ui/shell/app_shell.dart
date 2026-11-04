@@ -16,7 +16,6 @@ import '../pages/send_page.dart';
 import '../pages/settings_page.dart';
 import '../pages/transfer_detail_page.dart';
 import '../pages/transfers_page.dart';
-import '../flows/open_transfer_folder.dart';
 import '../sheets/incoming_sheet.dart';
 import '../widgets/ambient_background.dart';
 import '../widgets/brand_mark.dart';
@@ -80,21 +79,11 @@ class _AppShellState extends State<AppShell> {
         if (!mounted) return;
         final l10n = context.l10n;
         if (job.status == TransferStatus.completed) {
-          if (job.direction == TransferDirection.receive) {
-            showAppToastWithAction(
-              context,
-              l10n.transferComplete,
-              actionLabel: l10n.openLocation,
-              onAction: () => openTransferFolder(context, job),
-              icon: Icons.check_circle_rounded,
-            );
-          } else {
-            showAppToast(
-              context,
-              l10n.transferComplete,
-              icon: Icons.check_circle_rounded,
-            );
-          }
+          showAppToast(
+            context,
+            l10n.transferComplete,
+            icon: Icons.check_circle_rounded,
+          );
         } else if (job.status == TransferStatus.failed) {
           showAppToast(
             context,

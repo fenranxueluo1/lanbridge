@@ -7,7 +7,6 @@ import '../../data/app_controller.dart';
 import '../../data/models/device.dart';
 import '../../data/models/transfer.dart';
 import '../../state/app_scope.dart';
-import '../flows/open_transfer_folder.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/device_avatar.dart';
@@ -534,28 +533,12 @@ class _Actions extends StatelessWidget {
     }
 
     if (job.status == TransferStatus.completed) {
-      return Row(
-        children: [
-          Expanded(
-            child: SoftButton(
-              label: l10n.openLocation,
-              icon: Icons.folder_open_rounded,
-              expanded: true,
-              height: 52,
-              onPressed: () => openTransferFolder(context, job),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: SoftButton(
-              label: l10n.done,
-              icon: Icons.check_rounded,
-              expanded: true,
-              height: 52,
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-        ],
+      return SoftButton(
+        label: l10n.done,
+        icon: Icons.check_rounded,
+        expanded: true,
+        height: 52,
+        onPressed: () => Navigator.of(context).pop(),
       );
     }
 

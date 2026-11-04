@@ -40,27 +40,6 @@ Future<List<TransferFile>> pickTransferFiles(FileType type) async {
       .toList();
 }
 
-/// Picks a folder and expands it into individual files with relative paths.
-Future<List<TransferFile>> pickTransferFolder() async {
-  if (AppPlatform.isHarmony) {
-    final folder = await OhosPicker.pickFolder();
-    if (folder == null) return const [];
-    final root = Directory(folder.path);
-    if (!await root.exists()) return const [];
-    final name = folder.name.trim().isEmpty
-        ? p.basename(folder.path)
-        : folder.name.trim();
-    return _expandFolder(root, name);
-  }
-
-  final directory = await FilePicker.getDirectoryPath();
-  if (directory == null || directory.isEmpty) return const [];
-
-  final root = Directory(directory);
-  if (!await root.exists()) return const [];
-  return _expandFolder(root, p.basename(root.path));
-}
-
 Future<List<TransferFile>> _expandFolder(
   Directory root,
   String rootName,

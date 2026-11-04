@@ -17,7 +17,6 @@ import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import java.io.File
 
 class MainActivity : FlutterActivity() {
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -66,19 +65,6 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     } catch (error: Exception) {
                         result.error("MULTICAST_LOCK", error.message, null)
-                    }
-                }
-                "openFolder" -> {
-                    val path = call.argument<String>("path")
-                    if (path.isNullOrEmpty()) {
-                        result.error("INVALID_PATH", "Missing folder path", null)
-                        return@setMethodCallHandler
-                    }
-                    try {
-                        openFolder(path)
-                        result.success(true)
-                    } catch (error: Exception) {
-                        result.error("OPEN_FOLDER", error.message, null)
                     }
                 }
                 else -> result.notImplemented()
@@ -226,25 +212,6 @@ class MainActivity : FlutterActivity() {
             .setCategory(Notification.CATEGORY_STATUS)
             .build()
         manager.notify(COMPLETE_NOTIFICATION_ID, notification)
-    }
-
-    private fun openFolder(path: String) {
-        val primaryRoot = "/storage/emulated/0/"
-        val uri = if (path.startsWith(primaryRoot)) {
-            val relative = path.removePrefix(primaryRoot).trimEnd('/')
-            Uri.parse(
-                "content://com.android.externalstorage.documents/document/primary%3A" +
-                    Uri.encode(relative),
-            )
-        } else {
-            Uri.fromFile(File(path))
-        }
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "vnd.android.document/directory")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        startActivity(intent)
     }
 
     override fun onDestroy() {

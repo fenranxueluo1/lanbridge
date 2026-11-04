@@ -35,37 +35,3 @@ void showAppToast(BuildContext context, String message, {IconData? icon}) {
       ),
     );
 }
-
-void showAppToastWithAction(
-  BuildContext context,
-  String message, {
-  String? actionLabel,
-  VoidCallback? onAction,
-  IconData? icon,
-}) {
-  final messenger = ScaffoldMessenger.of(context);
-  messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        margin: _toastMargin(context),
-        duration: const Duration(seconds: 4),
-        content: Row(
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 18, color: context.palette.brand),
-              const SizedBox(width: 10),
-            ],
-            Expanded(child: Text(message)),
-          ],
-        ),
-        action: actionLabel == null
-            ? null
-            : SnackBarAction(
-                label: actionLabel,
-                onPressed: onAction ?? () {},
-              ),
-      ),
-    );
-}

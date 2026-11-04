@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "D:/flutter_project/邻传证书库/lanbridge.p12",
-          "storePassword": "0000001B3332336F1D3FDD9CA7060F2732F0F70B9DF4D4C53BC2B81EEB36DDFC67CF7086D46F0C3C9F1F9B",
+          "certpath": "D:/flutter_project/邻传证书库/发布证书/lanbridge.cer",
           "keyAlias": "lanbridgeA",
-          "keyPassword": "0000001BB60467806DDE2557DAC13B0D9E397596721657A9C406328B05F6D5D9599B9D3B2DFFCE4B1EFA8E",
-          "signAlg": "SHA256withECDSA",
+          "keyPassword": "0000001B21AB5FE5531332781AAF7AEA847BE08FD6E561114A57EDB19C292E3AD5DA96EB71CD425F251522",
           "profile": "D:/flutter_project/邻传证书库/lanbridgeRelease.p7b",
-          "certpath": "D:/flutter_project/邻传证书库/发布证书/lanbridge.cer"
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "D:/flutter_project/邻传证书库/lanbridge.p12",
+          "storePassword": "0000001BA629EBD5265D744D9BBBEC65DD5835AE034004B203C90810C7C120294BF63C8D04E0C11D7E2249"
         }
       }
     ],
